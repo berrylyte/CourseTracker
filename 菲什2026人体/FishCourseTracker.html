@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>菲什人体课程打卡进度</title>
+    <style>
+        :root {
+            --bg-color: #f4f7f9;
+            --card-bg: #ffffff;
+            --primary: #2563eb;
+            --success: #dcfce7;
+            --success-text: #166534;
+            --warning: #fef3c7;
+            --warning-text: #92400e;
+            --danger: #fee2e2;
+            --danger-text: #991b1b;
+            --future: #e5e7eb;
+            --text-main: #1f2937;
+        }
+        body { font-family: "Segoe UI", sans-serif; background: var(--bg-color); color: var(--text-main); padding: 20px; }
+        .container { max-width: 1100px; margin: 0 auto; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+
+        button { cursor: pointer; padding: 8px 16px; border-radius: 6px; border: none; background: var(--primary); color: white; margin-left: 10px; }
+        button.secondary { background: #64748b; }
+
+        table { width: 100%; border-collapse: collapse; background: var(--card-bg); border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+        th { background: #f8fafc; padding: 15px 10px; text-align: left; border-bottom: 2px solid #e2e8f0; }
+        td { padding: 12px 10px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
+
+        .row-future  { background-color: var(--future); color: #4b5563; }
+        .row-urgent  { background-color: var(--warning); color: var(--warning-text); }
+        .row-overdue { background-color: var(--danger);  color: var(--danger-text); }
+        .row-completed { background-color: var(--success); color: var(--success-text); }
+
+        /* 倒计时方格 */
+        .timer-bar { display: flex; gap: 3px; align-items: center; flex-wrap: wrap; }
+        .box { width: 14px; height: 14px; border-radius: 2px; border: 1px solid #ccc; }
+        .box-past   { background-color: #94a3b8; border-color: #64748b; }
+        .box-remain { background-color: #22c55e; border-color: #16a34a; }
+        .box-future { background-color: #e2e8f0; }
+        .box-danger { background-color: #ef4444; border-color: #b91c1c; }
+        .timer-label { font-size: 11px; margin-left: 6px; }
+
+        .num-badge { display: inline-block; font-size: 12px; font-weight: bold; padding: 2px 8px;
+                     border-radius: 12px; background: #dbeafe; color: #1e40af; }
+        .course-list { font-size: 12px; line-height: 1.8; }
+        .course-item { display: flex; gap: 5px; align-items: baseline; }
+        .type-tag { font-size: 10px; padding: 1px 5px; border-radius: 3px; white-space: nowrap; }
+        .tag-lecture { background: #ede9fe; color: #5b21b6; }
+        .tag-draw    { background: #dcfce7; color: #166534; }
+        .tag-tea     { background: #fef3c7; color: #92400e; }
+        .tag-closing { background: #e5e7eb; color: #374151; }
+
+        .date-range { font-size: 13px; font-weight: 500; white-space: nowrap; }
+        .deadline   { font-size: 11px; color: #6b7280; margin-top: 2px; }
+        input[type="checkbox"] { width: 18px; height: 18px; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <h2>🎨 菲什人体结构课 — 打卡进度</h2>
+        <div>
+            <button onclick="exportData()">导出备份</button>
+            <button class="secondary" onclick="document.getElementById('fileInput').click()">导入记录</button>
+            <input type="file" id="fileInput" style="display:none" onchange="importData(event)">
+        </div>
+    </div>
+
+    <table id="courseTable">
+        <thead>
+            <tr>
+                <th width="55">打卡次</th>
+                <th width="130">打卡窗口</th>
+                <th width="130">剩余天数</th>
+                <th>涵盖课程</th>
+                <th width="60" style="text-align:center;">完成</th>
+            </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+    </table>
+</div>
+
+<script>
+// 每次打卡的数据
+const checkIns = [
+    {
+        num: 1, start: "2026-04-10", end: "2026-04-13",
+        courses: [
+            { n: 1,  date: "4/10", type: "lecture", name: "躯干结构精讲" },
+            { n: 2,  date: "4/11", type: "draw",    name: "动态带画1" },
+            { n: 3,  date: "4/12", type: "draw",    name: "动态带画2" },
+        ]
+    },
+    {
+        num: 2, start: "2026-04-14", end: "2026-04-16",
+        courses: [
+            { n: 4,  date: "4/14", type: "draw", name: "动态带画3" },
+            { n: 5,  date: "4/15", type: "tea",  name: "菲什的茶室" },
+        ]
+    },
+    {
+        num: 3, start: "2026-04-17", end: "2026-04-20",
+        courses: [
+            { n: 6,  date: "4/17", type: "lecture", name: "头肩颈结构精讲" },
+            { n: 7,  date: "4/18", type: "draw",    name: "动态带画1" },
+            { n: 8,  date: "4/19", type: "draw",    name: "动态带画2" },
+        ]
+    },
+    {
+        num: 4, start: "2026-04-21", end: "2026-04-23",
+        courses: [
+            { n: 9,  date: "4/21", type: "draw", name: "动态带画3" },
+            { n: 10, date: "4/22", type: "tea",  name: "菲什的茶室" },
+        ]
+    },
+    {
+        num: 5, start: "2026-04-24", end: "2026-04-27",
+        courses: [
+            { n: 11, date: "4/24", type: "lecture", name: "上肢结构精讲" },
+            { n: 12, date: "4/25", type: "draw",    name: "动态带画1" },
+            { n: 13, date: "4/26", type: "draw",    name: "动态带画2" },
+        ]
+    },
+    {
+        num: 6, start: "2026-04-28", end: "2026-04-30",
+        courses: [
+            { n: 14, date: "4/28", type: "draw", name: "动态带画3" },
+            { n: 15, date: "4/29", type: "tea",  name: "菲什的茶室" },
+        ]
+    },
+    {
+        num: 7, start: "2026-05-01", end: "2026-05-04",
+        courses: [
+            { n: 16, date: "5/1",  type: "lecture", name: "下肢结构精讲" },
+            { n: 17, date: "5/2",  type: "draw",    name: "动态带画1" },
+            { n: 18, date: "5/3",  type: "draw",    name: "动态带画2" },
+        ]
+    },
+    {
+        num: 8, start: "2026-05-05", end: "2026-05-07",
+        courses: [
+            { n: 19, date: "5/5",  type: "draw", name: "动态带画3" },
+            { n: 20, date: "5/6",  type: "tea",  name: "菲什的茶室" },
+        ]
+    },
+    {
+        num: 9, start: "2026-05-08", end: "2026-05-11",
+        courses: [
+            { n: 21, date: "5/8",  type: "lecture", name: "顶部视角特训" },
+            { n: 22, date: "5/9",  type: "draw",    name: "动态带画1" },
+            { n: 23, date: "5/10", type: "draw",    name: "动态带画2" },
+        ]
+    },
+    {
+        num: 10, start: "2026-05-12", end: "2026-05-14",
+        courses: [
+            { n: 24, date: "5/12", type: "draw", name: "动态带画3" },
+            { n: 25, date: "5/13", type: "tea",  name: "菲什的茶室" },
+        ]
+    },
+    {
+        num: 11, start: "2026-05-15", end: "2026-05-18",
+        courses: [
+            { n: 26, date: "5/15", type: "lecture", name: "底部视角特训" },
+            { n: 27, date: "5/16", type: "draw",    name: "动态带画1" },
+            { n: 28, date: "5/17", type: "draw",    name: "动态带画2" },
+        ]
+    },
+    {
+        num: 12, start: "2026-05-19", end: "2026-05-21",
+        courses: [
+            { n: 29, date: "5/19", type: "draw", name: "动态带画3" },
+            { n: 30, date: "5/20", type: "tea",  name: "菲什的茶室" },
+        ]
+    },
+    {
+        num: 13, start: "2026-05-22", end: "2026-05-25",
+        courses: [
+            { n: 31, date: "5/22", type: "lecture", name: "大动态特训" },
+            { n: 32, date: "5/23", type: "draw",    name: "动态带画1" },
+            { n: 33, date: "5/24", type: "draw",    name: "动态带画2" },
+        ]
+    },
+    {
+        num: 14, start: "2026-05-26", end: "2026-05-28",
+        courses: [
+            { n: 34, date: "5/26", type: "draw", name: "动态带画3" },
+            { n: 35, date: "5/27", type: "tea",  name: "菲什的茶室" },
+        ]
+    },
+    {
+        num: 15, start: "2026-05-29", end: "2026-06-01",
+        courses: [
+            { n: 36, date: "5/29", type: "lecture", name: "大动态特训" },
+            { n: 37, date: "5/30", type: "draw",    name: "动态带画1" },
+            { n: 38, date: "5/31", type: "draw",    name: "动态带画2" },
+        ]
+    },
+    {
+        num: 16, start: "2026-06-02", end: "2026-06-04",
+        courses: [
+            { n: 39, date: "6/2",  type: "draw",    name: "动态带画3" },
+            { n: 40, date: "6/3",  type: "closing", name: "结课语" },
+        ]
+    },
+];
+
+const STORAGE_KEY = "fish_course_checkin_v1";
+let userState = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
+
+const typeConfig = {
+    lecture: { label: "精讲", cls: "tag-lecture" },
+    draw:    { label: "带画", cls: "tag-draw" },
+    tea:     { label: "茶室", cls: "tag-tea" },
+    closing: { label: "结课", cls: "tag-closing" },
+};
+
+function parseDate(str) {
+    const d = new Date(str);
+    d.setHours(0, 0, 0, 0);
+    return d;
+}
+
+function generateTimerHTML(startDate, endDate, isDone) {
+    if (isDone) return `<span style="color:var(--success-text); font-size:12px; font-weight:600;">✓ Clear!</span>`;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // 窗口总天数（含首尾）
+    const totalDays = Math.round((endDate - startDate) / 86400000) + 1;
+
+    // 距离开始的天数（负 = 还没到，正 = 已开始）
+    const daysSinceStart = Math.round((today - startDate) / 86400000);
+    const isOverdue = today > endDate;
+    const isNotStarted = today < startDate;
+
+    let boxes = "";
+    for (let i = 0; i < totalDays; i++) {
+        let cls = "box";
+        if (isOverdue) {
+            cls += " box-danger";
+        } else if (isNotStarted) {
+            cls += " box-future";
+        } else {
+            // i < daysSinceStart 表示已过去的天（今天算剩余第一天）
+            cls += i < daysSinceStart ? " box-past" : " box-remain";
+        }
+        boxes += `<div class="${cls}"></div>`;
+    }
+
+    let label = "";
+    if (isOverdue) {
+        label = `<span class="timer-label" style="color:#b91c1c;">已逾期</span>`;
+    } else if (isNotStarted) {
+        const daysUntil = Math.round((startDate - today) / 86400000);
+        label = `<span class="timer-label" style="color:#6b7280;">${daysUntil}天后开放</span>`;
+    } else {
+        const remaining = Math.round((endDate - today) / 86400000) + 1;
+        label = `<span class="timer-label" style="color:#15803d;">剩${remaining}天</span>`;
+    }
+
+    return `<div class="timer-bar">${boxes}${label}</div>`;
+}
+
+function render() {
+    const tbody = document.getElementById('tableBody');
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    tbody.innerHTML = checkIns.map(item => {
+        const startDate = parseDate(item.start);
+        const endDate   = parseDate(item.end);
+        const isDone    = userState[item.num] || false;
+
+        let rowClass = "";
+        if (isDone) {
+            rowClass = "row-completed";
+        } else if (today < startDate) {
+            rowClass = "row-future";
+        } else if (today > endDate) {
+            rowClass = "row-overdue";
+        } else {
+            rowClass = "row-urgent";
+        }
+
+        const timerHTML = generateTimerHTML(startDate, endDate, isDone);
+
+        const courseListHTML = item.courses.map(c => {
+            const cfg = typeConfig[c.type];
+            return `<div class="course-item">
+                <span style="color:#9ca3af; font-size:11px; min-width:28px;">${c.date}</span>
+                <span class="type-tag ${cfg.cls}">${cfg.label}</span>
+                <span>${c.name}</span>
+            </div>`;
+        }).join('');
+
+        return `
+            <tr class="${rowClass}">
+                <td style="text-align:center; vertical-align:middle;">
+                    <span class="num-badge">第${item.num}次</span>
+                </td>
+                <td style="vertical-align:middle;">
+                    <div class="date-range">${item.start.slice(5).replace('-','/')} — ${item.end.slice(5).replace('-','/')}</div>
+                    <div class="deadline">截止 23:59</div>
+                </td>
+                <td style="vertical-align:middle;">${timerHTML}</td>
+                <td><div class="course-list">${courseListHTML}</div></td>
+                <td style="text-align:center; vertical-align:middle;">
+                    <input type="checkbox" ${isDone ? 'checked' : ''} onchange="toggle(${item.num}, this.checked)">
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function toggle(num, val) {
+    userState[num] = val;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(userState));
+    render();
+}
+
+function exportData() {
+    const blob = new Blob([JSON.stringify(userState)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "fish_course_checkin_export.json";
+    a.click();
+}
+
+function importData(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = event => {
+        userState = JSON.parse(event.target.result);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(userState));
+        render();
+    };
+    reader.readAsText(file);
+}
+
+render();
+</script>
+</body>
+</html>

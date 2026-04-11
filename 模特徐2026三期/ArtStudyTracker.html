@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>模特徐速涂课程进度</title>
+    <style>
+        :root {
+            --bg-color: #f4f7f9;
+            --card-bg: #ffffff;
+            --primary: #2563eb;
+            --success: #dcfce7;
+            --success-text: #166534;
+            --warning: #fef3c7;
+            --warning-text: #92400e;
+            --danger: #fee2e2;
+            --danger-text: #991b1b;
+            --future: #e5e7eb;
+            --text-main: #1f2937;
+        }
+        body { font-family: "Segoe UI", sans-serif; background: var(--bg-color); color: var(--text-main); padding: 20px; }
+        .container { max-width: 1000px; margin: 0 auto; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        
+        button { cursor: pointer; padding: 8px 16px; border-radius: 6px; border: none; background: var(--primary); color: white; margin-left: 10px; }
+        button.secondary { background: #64748b; }
+        
+        table { width: 100%; border-collapse: collapse; background: var(--card-bg); border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+        th { background: #f8fafc; padding: 15px 10px; text-align: left; border-bottom: 2px solid #e2e8f0; }
+        td { padding: 12px 10px; border-bottom: 1px solid #e2e8f0; }
+
+        /* 状态样式 */
+        .row-future { background-color: var(--future); color: #4b5563; }
+        .row-urgent { background-color: var(--warning); color: var(--warning-text); }
+        .row-overdue { background-color: var(--danger); color: var(--danger-text); }
+        .row-completed { background-color: var(--success); color: var(--success-text); }
+        
+        /* 倒计时方格样式 */
+        .timer-bar { display: flex; gap: 3px; }
+        .box { width: 12px; height: 12px; border-radius: 2px; border: 1px solid #ccc; }
+        .box-past { background-color: #94a3b8; border-color: #64748b; } /* 过去的日子 */
+        .box-remain { background-color: #22c55e; border-color: #16a34a; } /* 剩余的日子 */
+        .box-future { background-color: #e2e8f0; } /* 还没到的日子 */
+        .box-danger { background-color: #ef4444; border-color: #b91c1c; } /* 逾期标记 */
+
+        .type-tag { font-size: 11px; padding: 2px 6px; border-radius: 4px; background: #ddd; margin-right: 5px; }
+        .extra-tag { background: #ddd6fe; color: #5b21b6; }
+        input[type="checkbox"] { width: 18px; height: 18px; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <h2>🎨 打卡进度</h2>
+        <div>
+            <button onclick="exportData()">导出备份</button>
+            <button class="secondary" onclick="document.getElementById('fileInput').click()">导入记录</button>
+            <input type="file" id="fileInput" style="display:none" onchange="importData(event)">
+        </div>
+    </div>
+
+    <table id="courseTable">
+        <thead>
+            <tr>
+                <th width="100">上课日期</th>
+                <th width="120">补卡期限</th>
+                <th width="100">分类</th>
+                <th>课题内容</th>
+                <th width="60" style="text-align: center;">完稿</th>
+            </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+    </table>
+</div>
+
+<script>
+// 数据源保持不变
+const rawData = [
+    { d: "2026-01-19", c: "预科", t: "塑造-简单单体", ex: true },
+    { d: "2026-01-21", c: "预科", t: "氛围-小气氛", ex: true },
+    { d: "2026-01-23", c: "预科", t: "塑造-简单单体", ex: true },
+    { d: "2026-01-25", c: "预科", t: "氛围-小气氛", ex: true },
+    { d: "2026-01-26", c: "正式(1)", t: "着装-厚衣服", ex: false },
+    { d: "2026-01-27", c: "控笔", t: "塑造-衣褶", ex: true },
+    { d: "2026-01-28", c: "正式(2)", t: "头像-嘴", ex: false },
+    { d: "2026-01-29", c: "控笔", t: "氛围-小气氛", ex: true },
+    { d: "2026-01-30", c: "正式(3)", t: "单体-花/植物/石头", ex: false },
+    { d: "2026-02-01", c: "正式(4)", t: "氛围-小气氛", ex: false },
+    { d: "2026-02-02", c: "正式(5)", t: "着装-衬衣", ex: false },
+    { d: "2026-02-03", c: "控笔", t: "塑造-鞋子", ex: true },
+    { d: "2026-02-04", c: "正式(6)", t: "头像-眼睛", ex: false },
+    { d: "2026-02-05", c: "控笔", t: "氛围-小气氛", ex: true },
+    { d: "2026-02-06", c: "正式(7)", t: "单体-云彩", ex: false },
+    { d: "2026-02-08", c: "正式(8)", t: "氛围-阳光/正午", ex: false },
+    { d: "2026-02-09", c: "正式(9)", t: "着装-鞋子", ex: false },
+    { d: "2026-02-10", c: "软件", t: "Procreate-食物", ex: true },
+    { d: "2026-02-11", c: "正式(10)", t: "头像-鼻子+耳朵", ex: false },
+    { d: "2026-02-13", c: "正式(11)", t: "单体-建筑", ex: false },
+    { d: "2026-02-25", c: "正式(12)", t: "头像-头发", ex: false },
+    { d: "2026-02-27", c: "正式(13)", t: "着装-盔甲", ex: false },
+    { d: "2026-03-01", c: "正式(14)", t: "头像-女头(正面/年轻/短发)", ex: false },
+    { d: "2026-03-02", c: "正式(15)", t: "单体-机械", ex: false },
+    { d: "2026-03-03", c: "软件", t: "Sai-鸟", ex: true },
+    { d: "2026-03-04", c: "正式(16)", t: "氛围-傍晚", ex: false },
+    { d: "2026-03-06", c: "正式(17)", t: "着装-全身着装", ex: false },
+    { d: "2026-03-08", c: "正式(18)", t: "头像-男头(正面/年轻/寸头)", ex: false },
+    { d: "2026-03-09", c: "正式(19)", t: "单体-水面", ex: false },
+    { d: "2026-03-10", c: "软件", t: "CSP-脚", ex: true },
+    { d: "2026-03-11", c: "正式(20)", t: "氛围-清晨", ex: false },
+    { d: "2026-03-13", c: "正式(21)", t: "着装-礼服/洛丽塔", ex: false },
+    { d: "2026-03-15", c: "正式(22)", t: "头像-女头(侧面/成熟/长发)", ex: false },
+    { d: "2026-03-16", c: "正式(23)", t: "单体-许愿机", ex: false },
+    { d: "2026-03-17", c: "绘画", t: "天生绘画-许愿机", ex: true },
+    { d: "2026-03-18", c: "正式(24)", t: "氛围-室内(自然光)", ex: false },
+    { d: "2026-03-20", c: "正式(25)", t: "头像-帅老头(侧面/成熟/胡须)", ex: false },
+    { d: "2026-03-22", c: "正式(26)", t: "身体-手(正面/背面)", ex: false },
+    { d: "2026-03-23", c: "正式(27)", t: "氛围-街道", ex: false },
+    { d: "2026-03-25", c: "正式(28)", t: "氛围-舞台", ex: false },
+    { d: "2026-03-27", c: "正式(29)", t: "人体-男人体", ex: false },
+    { d: "2026-03-29", c: "正式(30)", t: "其他-FURRY", ex: false },
+    { d: "2026-03-30", c: "正式(31)", t: "氛围-教堂", ex: false },
+    { d: "2026-04-01", c: "正式(32)", t: "许愿-室内(灯光)", ex: false },
+    { d: "2026-04-03", c: "正式(33)", t: "人体-女人体", ex: false },
+    { d: "2026-04-08", c: "正式(34)", t: "许愿-许愿机", ex: false },
+    { d: "2026-04-10", c: "正式(35)", t: "氛围-夜景/灯火", ex: false },
+    { d: "2026-04-12", c: "正式(36)", t: "许愿-许愿机", ex: false }
+];
+
+const STORAGE_KEY = "art_study_records_v3";
+let userState = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
+
+function generateTimerHTML(diffDays, isDone, isExtra) {
+    if (isExtra) return `<span style="color:#94a3b8; font-size:11px;">无限制</span>`;
+    if (isDone) return `<span style="color:var(--success-text); font-size:11px;">Clear!</span>`;
+    
+    let boxes = "";
+    for (let i = 0; i < 7; i++) {
+        let boxClass = "box";
+        if (diffDays > 6) {
+            boxClass += " box-danger"; // 整体逾期
+        } else if (i < diffDays) {
+            boxClass += " box-past"; // 已经过去的天数
+        } else if (diffDays < 0) {
+            boxClass += " box-future"; // 课还没开始
+        } else {
+            boxClass += " box-remain"; // 还可以补课的天数
+        }
+        boxes += `<div class="${boxClass}"></div>`;
+    }
+    return `<div class="timer-bar">${boxes}</div>`;
+}
+
+function render() {
+    const tbody = document.getElementById('tableBody');
+    const today = new Date();
+    today.setHours(0,0,0,0);
+
+    tbody.innerHTML = rawData.map((item) => {
+        const cDate = new Date(item.d);
+        const isDone = userState[item.d] || false;
+        const diffDays = Math.floor((today - cDate) / (1000 * 60 * 60 * 24));
+        
+        let rowClass = "";
+        if (isDone) rowClass = "row-completed";
+        else if (cDate > today) rowClass = "row-future";
+        else if (!item.ex) {
+            if (diffDays >= 7) rowClass = "row-overdue";
+            else if (diffDays >= 0) rowClass = "row-urgent";
+        }
+
+        const timerHTML = generateTimerHTML(diffDays, isDone, item.ex);
+
+        return `
+            <tr class="${rowClass}">
+                <td>${item.d}</td>
+                <td>${timerHTML}</td>
+                <td><span class="type-tag ${item.ex ? 'extra-tag' : ''}">${item.c}</span></td>
+                <td>${item.t}</td>
+                <td style="text-align: center;">
+                    <input type="checkbox" ${isDone ? 'checked' : ''} onchange="toggle('${item.d}', this.checked)">
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function toggle(dateStr, val) {
+    userState[dateStr] = val;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(userState));
+    render();
+}
+
+function exportData() {
+    const blob = new Blob([JSON.stringify(userState)], {type: "application/json"});
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `art_progress_export.json`;
+    a.click();
+}
+
+function importData(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+        userState = JSON.parse(event.target.result);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(userState));
+        render();
+    };
+    reader.readAsText(file);
+}
+
+render();
+</script>
+</body>
+</html>
